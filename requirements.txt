@@ -1,0 +1,18 @@
+python-dotenv
+google-generativeai
+tqdm
+ffmpeg-python
+requests
+Pillow
+openai
+diffusers
+transformers
+torch
+accelerate
+safetensors
+# TTS  # Coqui TTS (Python <=3.11) - Commented out for Python 3.12+ compatibility
+# eSpeak NG (system package, not pip)
+# ffmpeg (system package, not pip)
+# Optional: For image generation
+# openai  # For DALL-E API
+# diffusers  # For Stable Diffusion 
