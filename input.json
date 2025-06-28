@@ -1,21 +1,21 @@
 {
-  "topic": "The Loving Vegetables for Kids",
+  "topic": "Sejarah Seru Sayur-Sayuran untuk Anak",
   "keywords": [
-    "vegetables",
-    "kids",
-    "healthy eating"
+    "sayur-sayuran",
+    "anak-anak",
+    "sejarah makanan sehat"
   ],
-  "prompt": "Write a fun, educational script for children about the superpowers of vegetables.",
+  "prompt": "Tulis naskah yang menyenangkan dan edukatif untuk anak-anak tentang sejarah menarik di balik sayur-sayuran yang mereka makan.",
   "duration": 0.5,
   "model": "models/gemini-1.5-flash",
   "meta": {
     "tts": {
-      "tts_engine": "espeak",
+      "engine": "espeak",
       "model": null,
       "voice": null
     },
     "image": {
-      "image_engine": "stable_diffusion",
+      "engine": "stable_diffusion",
       "model": "runwayml/stable-diffusion-v1-5",
       "size": "512x512",
       "quality": "standard"
