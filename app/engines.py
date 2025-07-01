@@ -5,13 +5,11 @@ Engine management for TTS and image generation.
 import logging
 from typing import Dict, Any, Optional, Callable
 from pathlib import Path
-
-from config import PipelineConfig, TTSConfig, ImageConfig
-from utils import discover_plugins
+from app.config import PipelineConfig, TTSConfig, ImageConfig
+from app.utils import discover_plugins
 import os
 
 logger = logging.getLogger(__name__)
-
 
 class EngineManager:
     """Manages TTS and image generation engines with fallbacks."""
@@ -23,8 +21,8 @@ class EngineManager:
     
     def _load_tts_engines(self) -> Dict[str, Callable]:
         """Dynamically load available TTS engines as plugins."""
-        tts_dir = Path(os.path.dirname(__file__)) / 'tts_engines'
-        plugins = discover_plugins(tts_dir, 'tts_')
+        tts_dir = Path(os.path.dirname(__file__)) / '../tts_engines'
+        plugins = discover_plugins(tts_dir.resolve(), 'tts_')
         if not plugins:
             raise RuntimeError("No TTS engines available")
         logger.info(f"Available TTS engines: {list(plugins.keys())}")
@@ -32,8 +30,8 @@ class EngineManager:
     
     def _load_image_engines(self) -> Dict[str, Callable]:
         """Dynamically load available image generation engines as plugins."""
-        image_dir = Path(os.path.dirname(__file__)) / 'image_engines'
-        plugins = discover_plugins(image_dir, 'generate_')
+        image_dir = Path(os.path.dirname(__file__)) / '../image_engines'
+        plugins = discover_plugins(image_dir.resolve(), 'generate_')
         if not plugins:
             raise RuntimeError("No image engines available")
         logger.info(f"Available image engines: {list(plugins.keys())}")

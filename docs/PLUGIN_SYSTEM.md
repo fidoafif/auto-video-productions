@@ -10,7 +10,7 @@ The system will automatically discover, import, and register any compatible engi
 
 ## How It Works
 
-- **Discovery**: At startup, the pipeline scans the `tts_engines/` and `image_engines/` directories for `.py` files (excluding `__init__.py`).
+- **Discovery**: At startup, the pipeline scans the `app/tts_engines/` and `app/image_engines/` directories for `.py` files (excluding `__init__.py`).
 - **Import**: Each file is imported as a module.
 - **Registration**: Any function in the module that matches the expected naming convention is registered as an available engine.
 - **Usage**: The engine can be selected in your `input.json` by name.
@@ -29,6 +29,8 @@ app/
 │   ├── dalle.py
 │   ├── stable_diffusion.py
 │   └── ...
+docs/                    # Documentation
+tests/                   # Tests and test utilities
 ```
 
 ---
@@ -36,11 +38,11 @@ app/
 ## Naming Conventions
 
 ### TTS Engines
-- File: `tts_engines/tts_<engine_name>.py`
+- File: `app/tts_engines/tts_<engine_name>.py`
 - Function: `def tts_<engine_name>(text, output_path, model=None, voice=None): ...`
 
 ### Image Engines
-- File: `image_engines/generate_<engine_name>_image.py` **or** `image_engines/<engine_name>.py`
+- File: `app/image_engines/generate_<engine_name>_image.py` **or** `app/image_engines/<engine_name>.py`
 - Function: `def generate_<engine_name>_image(prompt, output_path, model=None, size=None, quality=None): ...`
   - The loader will accept any function starting with `generate_`.
 
@@ -49,8 +51,8 @@ app/
 ## How to Add a New Engine Plugin
 
 ### 1. **Create the Engine File**
-- For TTS: Place your file in `tts_engines/` and name it `tts_<engine_name>.py`.
-- For Image: Place your file in `image_engines/` and name it `generate_<engine_name>_image.py` or `<engine_name>.py`.
+- For TTS: Place your file in `app/tts_engines/` and name it `tts_<engine_name>.py`.
+- For Image: Place your file in `app/image_engines/` and name it `generate_<engine_name>_image.py` or `<engine_name>.py`.
 
 ### 2. **Define the Engine Function**
 - For TTS:
@@ -79,7 +81,7 @@ You can add variables like `PLUGIN_NAME`, `PLUGIN_DESCRIPTION`, etc., to your mo
 
 ## Example: Adding a Dummy TTS Engine
 
-**File:** `tts_engines/tts_dummy.py`
+**File:** `app/tts_engines/tts_dummy.py`
 ```python
 def tts_dummy(text, output_path, model=None, voice=None):
     with open(output_path, 'w') as f:

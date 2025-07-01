@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
-
 @dataclass
 class TTSConfig:
     """Text-to-Speech configuration."""
@@ -16,7 +15,6 @@ class TTSConfig:
     model: Optional[str] = None
     voice: Optional[str] = None
     fallback_engine: str = "espeak"
-
 
 @dataclass
 class ImageConfig:
@@ -27,7 +25,6 @@ class ImageConfig:
     quality: str = "standard"
     fallback_engine: str = "unsplash"
 
-
 @dataclass
 class VideoConfig:
     """Video assembly configuration."""
@@ -36,7 +33,6 @@ class VideoConfig:
     video_codec: str = "libx264"
     audio_codec: str = "aac"
     pixel_format: str = "yuv420p"
-
 
 @dataclass
 class PipelineConfig:
@@ -69,21 +65,6 @@ class PipelineConfig:
         self.gemini_api_key = self.gemini_api_key or os.getenv("GEMINI_API_KEY")
         self.openai_api_key = self.openai_api_key or os.getenv("OPENAI_API_KEY")
 
-
 def load_config() -> PipelineConfig:
     """Load configuration from environment and defaults."""
-    return PipelineConfig()
-
-
-def get_safe_filename(text: str) -> str:
-    """Convert text to a safe filename."""
-    import re
-    # Remove or replace unsafe characters
-    safe = re.sub(r'[<>:"/\\|?*]', '', text)
-    # Replace spaces and other characters with underscores
-    safe = re.sub(r'[^\w\-_.]', '_', safe)
-    # Remove multiple consecutive underscores
-    safe = re.sub(r'_+', '_', safe)
-    # Remove leading/trailing underscores
-    safe = safe.strip('_')
-    return safe or "untitled" 
+    return PipelineConfig() 
