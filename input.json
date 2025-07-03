@@ -1,11 +1,11 @@
 {
-  "topic": "Sejarah Seru Sayur-Sayuran untuk Anak",
+  "topic": "Petualangan Buah Ajaib di Kebun Ceria",
   "keywords": [
-    "sayur-sayuran",
+    "buah-buahan",
     "anak-anak",
-    "sejarah makanan sehat"
+    "dongeng kebun"
   ],
-  "prompt": "Tulis naskah yang menyenangkan dan edukatif untuk anak-anak tentang sejarah menarik di balik sayur-sayuran yang mereka makan.",
+  "prompt": "Tulis cerita dongeng yang seru dan imajinatif untuk anak-anak tentang buah-buahan ajaib yang hidup di sebuah kebun ceria.",
   "duration": 0.5,
   "model": "models/gemini-1.5-flash",
   "meta": {
@@ -15,10 +15,14 @@
       "voice": null
     },
     "image": {
-      "engine": "stable_diffusion",
-      "model": "runwayml/stable-diffusion-v1-5",
+      "engine": "dynamic",
       "size": "512x512",
-      "quality": "standard"
+      "quality": "standard",
+      "models": {
+        "cartoon": "ai-characters/st-AI-le",
+        "photorealistic": "stabilityai/stable-diffusion-xl-base-1.0",
+        "anime": "stablediffusionapi/anything-v5"
+      }
     }
   }
 }

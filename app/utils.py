@@ -38,7 +38,8 @@ def create_numbered_directory(base_dir: str, name: str) -> Path:
             return numbered_dir
         counter += 1
 
-def save_json(data: Dict[str, Any], file_path: Path) -> None:
+def save_json(data: Any, file_path: Path) -> None:
+    """Save a dict or list as JSON to the given file path."""
     import json
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)

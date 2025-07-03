@@ -15,6 +15,9 @@ def parse_arguments():
     parser.add_argument('--use_existing', help='Use existing data from specified output folder')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
     parser.add_argument('--max_workers', type=int, default=4, help='Number of parallel workers for voice/image generation')
+    parser.add_argument('--only_script', action='store_true', help='Run only the script step and validate output')
+    parser.add_argument('--only_audio', action='store_true', help='Run only the audio step and validate output')
+    parser.add_argument('--only_image', action='store_true', help='Run only the image step and validate output')
     args = parser.parse_args()
     return args
 
@@ -110,6 +113,62 @@ def main():
     try:
         args = parse_arguments()
         validate_arguments(args)
+        if getattr(args, 'only_script', False):
+            config = load_config()
+            engine_manager = EngineManager(config)
+            input_data = load_input_data(args.input)
+            output_dir = create_numbered_directory(args.output_dir, input_data['topic'])
+            pipeline = VideoPipeline(config, engine_manager, str(output_dir), max_workers=args.max_workers)
+            logger.info("--- Step 1: Script Generation (Test Mode) ---")
+            script_data = pipeline.generate_script(input_data)
+            print(json.dumps(script_data, indent=2, ensure_ascii=False))
+            print("\n✅ Script step complete and validated.")
+            return 0
+        if getattr(args, 'only_audio', False):
+            config = load_config()
+            engine_manager = EngineManager(config)
+            # Find the latest script.json in the output_dir
+            from glob import glob
+            import os
+            scripts_dir = Path(args.output_dir) / 'scripts'
+            script_path = scripts_dir / 'script.json'
+            if not script_path.exists():
+                raise FileNotFoundError(f"script.json not found in {scripts_dir}")
+            with open(script_path, 'r') as f:
+                script_data = json.load(f)
+            pipeline = VideoPipeline(config, engine_manager, str(Path(args.output_dir)), max_workers=args.max_workers)
+            logger.info("--- Step 2: Voice Generation (Test Mode) ---")
+            manifest = pipeline.generate_voice(script_data, test_mode=True)
+            print(json.dumps(manifest, indent=2, ensure_ascii=False))
+            print("\n✅ Audio step complete and validated.")
+            return 0
+        if getattr(args, 'only_image', False):
+            config = load_config()
+            engine_manager = EngineManager(config)
+            # Find the latest voice.json and script.json in the output_dir
+            import os
+            scripts_dir = Path(args.output_dir) / 'scripts'
+            audio_dir = Path(args.output_dir) / 'audio'
+            script_path = scripts_dir / 'script.json'
+            voice_path = audio_dir / 'voice.json'
+            if not script_path.exists():
+                raise FileNotFoundError(f"script.json not found in {scripts_dir}")
+            if not voice_path.exists():
+                raise FileNotFoundError(f"voice.json not found in {audio_dir}")
+            with open(script_path, 'r') as f:
+                script_data = json.load(f)
+            with open(voice_path, 'r') as f:
+                voice_data = json.load(f)
+            # For compatibility, reconstruct voice_data as a dict with meta and sections from script
+            if isinstance(voice_data, list):
+                # Use script_data for meta/sections, as in the main pipeline
+                voice_data = script_data
+            pipeline = VideoPipeline(config, engine_manager, str(Path(args.output_dir)), max_workers=args.max_workers)
+            logger.info("--- Step 3: Image Generation (Test Mode) ---")
+            manifest = pipeline.generate_images(voice_data, test_mode=True)
+            print(json.dumps(manifest, indent=2, ensure_ascii=False))
+            print("\n✅ Image step complete and validated.")
+            return 0
         final_video_path = run_pipeline(args, logger)
         print(f"\n🎉 Video production complete!")
         print(f"📁 Output: {final_video_path}")

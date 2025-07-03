@@ -14,6 +14,8 @@ import app.helpers as helpers
 from app.config import PipelineConfig, TTSConfig, ImageConfig, VideoConfig
 from app.engines import EngineManager
 from app.utils import save_json, load_json, ensure_directory, clean_temp_files, validate_file_exists, sanitize_filename
+import jsonschema
+from app.image_model_defaults import IMAGE_MODEL_DEFAULTS
 
 logger = logging.getLogger(__name__)
 
@@ -80,28 +82,48 @@ class VideoPipeline:
         response = model.generate_content(prompt)
         text = response.text
         sections = self._parse_script_response(text)
-        if not validate_script_sections(sections):
-            raise ValueError("Generated script sections are not valid. Please check the prompt or model output.")
+        # --- Section Consistency ---
+        sections = helpers.ensure_section_consistency(sections)
+        # ---
+        # --- Assign style to each section (round-robin for demo) ---
+        style_cycle = ['cartoon', 'anime', 'photorealistic']
+        for i, section in enumerate(sections):
+            section['style'] = style_cycle[i % len(style_cycle)]
+        # ---
         for section in sections:
             section["duration"] = helpers.estimate_duration(section["narration"])
         title = input_data.get("topic", "Generated Video Script")
         if sections and sections[0].get("heading"):
             title = sections[0]["heading"]
+        # --- Metadata Enrichment ---
+        meta = helpers.enrich_metadata({**input_data.get("meta", {}),
+                                        "model": model_name,
+                                        "topic": input_data.get("topic", ""),
+                                        "keywords": input_data.get("keywords", []),
+                                        "prompt": input_data.get("prompt", "")},
+                                       input_data)
+        # ---
         output = {
             "title": title,
             "sections": sections,
-            "meta": {
-                **input_data.get("meta", {}),
-                "model": model_name,
-                "topic": input_data.get("topic", ""),
-                "keywords": input_data.get("keywords", []),
-                "prompt": input_data.get("prompt", ""),
-                "generated_at": datetime.now().isoformat()
-            }
+            "meta": meta
         }
+        # --- JSON Schema Validation ---
+        schema_path = Path(__file__).parent.parent / "schemas" / "script.schema.json"
+        with open(schema_path, "r") as f:
+            schema = json.load(f)
+        try:
+            jsonschema.validate(instance=output, schema=schema)
+        except jsonschema.ValidationError as e:
+            logger.error(f"script.json validation failed: {e.message}")
+            raise ValueError(f"script.json validation failed: {e.message}")
+        # ---
         script_path = self.scripts_dir / "script.json"
         save_json(output, script_path)
-        logger.info(f"Script generated and saved to {script_path}")
+        # --- SRT Export ---
+        srt_path = self.scripts_dir / "script.srt"
+        helpers.export_srt(sections, srt_path)
+        logger.info(f"Script generated and saved to {script_path} and {srt_path}")
         self.progress["script"] = True
         self._save_progress()
         return output
@@ -134,28 +156,62 @@ class VideoPipeline:
             sections.append(current)
         return sections
 
-    def generate_voice(self, script_data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_voice(self, script_data: Dict[str, Any], test_mode: bool = False) -> Any:
+        """Generate voice audio for each section. Returns manifest (list) in test mode, else original script_data (dict)."""
         meta = script_data.get("meta", {})
         tts_config = TTSConfig(**meta.get("tts", {}))
         sections = script_data["sections"]
         completed = set(self.progress.get("voice", []))
         tasks = []
+        manifest = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for idx, section in enumerate(sections, 1):
                 if idx in completed:
                     logger.info(f"Voice for section {idx} already completed. Skipping.")
                     continue
                 tasks.append(executor.submit(self._generate_voice_section, idx, section, tts_config))
-            for future in as_completed(tasks):
+            for future in tqdm(as_completed(tasks), total=len(tasks), desc="Generating voice", unit="section"):
                 result = future.result()
                 if result:
                     idx = result
                     with self._progress_lock:
                         self.progress.setdefault("voice", []).append(idx)
                         self._save_progress()
+        # Build manifest and generate transcripts
+        for idx, section in enumerate(sections, 1):
+            heading = section["heading"]
+            narration = section["narration"]
+            safe_heading = sanitize_filename(heading)
+            filename = f"{idx:02d}_{safe_heading}.wav"
+            transcript_path = self.audio_dir / f"{idx:02d}_{safe_heading}.txt"
+            vtt_path = self.audio_dir / f"{idx:02d}_{safe_heading}.vtt"
+            # Write plain text transcript
+            with open(transcript_path, 'w', encoding='utf-8') as f:
+                f.write(narration.strip())
+            # Write WebVTT transcript (single cue for whole narration)
+            duration = section.get("duration", 0)
+            start = "00:00:00.000"
+            mins = int(duration // 60)
+            secs = int(duration % 60)
+            ms = int((duration - int(duration)) * 1000)
+            end = f"00:{mins:02}:{secs:02}.{ms:03}"
+            with open(vtt_path, 'w', encoding='utf-8') as f:
+                f.write("WEBVTT\n\n")
+                f.write(f"{start} --> {end}\n{narration.strip()}\n")
+            manifest.append({
+                "section_index": idx,
+                "script_heading": heading,
+                "filename": filename,
+                "duration": duration,
+                "speaker": tts_config.voice or "default",
+                "text": narration,
+                "format": "wav"
+            })
         voice_path = self.audio_dir / "voice.json"
-        save_json(script_data, voice_path)
-        logger.info(f"Voice generated and saved to {voice_path}")
+        save_json(manifest, voice_path)
+        logger.info(f"Voice generated and saved to {voice_path} (manifest)")
+        if test_mode:
+            return manifest
         return script_data
 
     def _generate_voice_section(self, idx, section, tts_config):
@@ -173,30 +229,86 @@ class VideoPipeline:
             logger.error(f"Voice generation failed for section {idx}: {e}")
             return None
 
-    def generate_images(self, voice_data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_images(self, voice_data: Dict[str, Any], test_mode: bool = False) -> Any:
+        """Generate images for each section. First, generate and save images.json manifest, then generate images from it."""
         meta = voice_data.get('meta', {})
-        image_config = ImageConfig(**meta.get('image', {}))
+        image_meta = meta.get('image', {})
+        # Defaults for dynamic config
+        engine = image_meta.get('engine', 'dynamic')
+        default_model = image_meta.get('default_model', 'runwayml/stable-diffusion-v1-5')
+        size = image_meta.get('size', '512x512')
+        quality = image_meta.get('quality', 'standard')
+        # Built-in default models for common styles
+        models_map = image_meta.get('models') or IMAGE_MODEL_DEFAULTS
         topic = meta.get('topic', '')
         keywords = meta.get('keywords', [])
         sections = voice_data["sections"]
         completed = set(self.progress.get("images", []))
+        manifest = []
+        # --- Phase 1: Build and save manifest ---
+        for idx, section in enumerate(sections, 1):
+            heading = section.get('heading', f'Section {idx}')
+            safe_heading = sanitize_filename(heading)
+            filename = f"{idx:02d}_{safe_heading}.png"
+            prompt = helpers.create_prompt_from_section(section, topic, keywords)
+            narration = section.get('narration', '')
+            alt_text = f"{heading}: {narration[:80]}" if narration else heading
+            style = section.get('style') or section.get('model')
+            model = None
+            if engine == 'dynamic':
+                if style and style in models_map:
+                    model = models_map[style]
+                else:
+                    model = default_model
+            else:
+                model = image_meta.get('model', default_model)
+            manifest.append({
+                "section_index": idx,
+                "script_heading": heading,
+                "filename": filename,
+                "prompt": prompt,
+                "alt_text": alt_text,
+                "resolution": size,
+                "model": model,
+                "style": style or "default"
+            })
+        images_path = self.images_dir / "images.json"
+        save_json(manifest, images_path)
+        logger.info(f"Image manifest generated and saved to {images_path}")
+        if test_mode:
+            return manifest
+        # --- Phase 2: Generate images from manifest ---
         tasks = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for idx, section in enumerate(sections, 1):
+            for entry in manifest:
+                idx = entry["section_index"]
                 if idx in completed:
                     logger.info(f"Image for section {idx} already completed. Skipping.")
                     continue
-                tasks.append(executor.submit(self._generate_image_section, idx, section, image_config, topic, keywords))
-            for future in as_completed(tasks):
+                section = sections[idx - 1]
+                image_config = ImageConfig(
+                    engine='stable_diffusion',
+                    model=entry["model"],
+                    size=size,
+                    quality=quality,
+                    fallback_engine='unsplash'
+                )
+                tasks.append(executor.submit(
+                    self._generate_image_section,
+                    idx,
+                    section,
+                    image_config,
+                    topic,
+                    keywords
+                ))
+            for future in tqdm(as_completed(tasks), total=len(tasks), desc="Generating images", unit="section"):
                 result = future.result()
                 if result:
                     idx = result
                     with self._progress_lock:
                         self.progress.setdefault("images", []).append(idx)
                         self._save_progress()
-        images_path = self.images_dir / "images.json"
-        save_json(voice_data, images_path)
-        logger.info(f"Images generated and saved to {images_path}")
+        logger.info(f"Images generated and saved to {images_path} (manifest)")
         return voice_data
 
     def _generate_image_section(self, idx, section, image_config, topic, keywords):
@@ -212,7 +324,18 @@ class VideoPipeline:
             return idx
         except Exception as e:
             logger.error(f"Image generation failed for section {idx}: {e}")
-            return None
+            # AI-powered image URL fallback
+            try:
+                # Always use the model from pipeline config or root meta
+                model_name = getattr(self.config, 'default_model', None)
+                url = helpers.get_image_url_from_ai(prompt, model_name)
+                helpers.download_image_from_url(url, image_path)
+                section['image_file'] = image_filename
+                logger.info(f"[Image] Section {idx} fallback: AI image URL downloaded.")
+                return idx
+            except Exception as e2:
+                logger.error(f"AI image URL fallback also failed for section {idx}: {e2}")
+                return None
 
     def assemble_video(self, image_data: Dict[str, Any]) -> str:
         if self.progress.get("video"):

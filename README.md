@@ -63,20 +63,28 @@ app/
    ```sh
    pip install -r requirements.txt
    ```
-4. **Install system dependencies:**
+4. **(Alternative) Use the provided run script:**
+   ```sh
+   ./run.sh
+   ```
+   This script will activate the venv if present, install requirements, and run the pipeline.
+5. **Install system dependencies:**
    - ffmpeg (e.g., `brew install ffmpeg` or `sudo apt install ffmpeg`)
    - eSpeak NG (e.g., `brew install espeak` or `sudo apt install espeak-ng`)
-5. **Set up your .env file:**
+6. **Set up your .env file:**
    - Add your API keys for the engines you want to use
-6. **Prepare your input.json:** (see below for example)
-7. **Run the pipeline:**
+7. **Prepare your input.json:** (see below for example)
+8. **Run the pipeline:**
    ```sh
    python main.py
    ```
-   
    Or with custom input/output:
    ```sh
    python main.py --input my_input.json --output_dir my_outputs/
+   ```
+   Or simply use:
+   ```sh
+   ./run.sh
    ```
 
 ## Example input.json
@@ -113,9 +121,14 @@ outputs/
 ```
 
 ## Troubleshooting
-- **Missing dependencies:** Install with `pip install -r requirements.txt`
+- **Missing dependencies:** Install with `pip install -r requirements.txt` or use `./run.sh`
 - **TTS engine errors:** Ensure you have the correct Python version and system dependencies (see table above)
 - **API errors:** Check your API keys and quotas
+- **Need a clean slate?** Run:
+  ```sh
+  ./clean_reinstall.sh
+  ```
+  This will remove outputs, caches, and reinstall all dependencies in a fresh virtual environment.
 
 ### Python Version Compatibility
 - **Coqui TTS compatibility:** The TTS package requires Python <=3.11. If you're using Python 3.12+, you have these options:

@@ -29,10 +29,10 @@ This document details the improvements and standards for script-related outputs 
           "heading": { "type": "string" },
           "narration": { "type": "string" },
           "duration": { "type": "number", "minimum": 1 }
-        }
+    }
       }
     },
-    "meta": {
+  "meta": {
       "type": "object",
       "required": ["model", "generated_at"],
       "properties": {

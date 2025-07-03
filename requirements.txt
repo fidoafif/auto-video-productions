@@ -16,3 +16,4 @@ safetensors
 # Optional: For image generation
 # openai  # For DALL-E API
 # diffusers  # For Stable Diffusion 
+jsonschema 
